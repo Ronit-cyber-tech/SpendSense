@@ -4,7 +4,7 @@ import { FinanceProvider } from "../context/FinanceProvider";
 import AppShell from "../components/AppShell";
 
 export const metadata = {
-  title: "FinWise",
+  title: "SpendSense",
   description: "Personal finance companion for students & young earners",
 };
 

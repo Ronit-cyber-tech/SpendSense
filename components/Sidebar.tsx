@@ -20,7 +20,7 @@ export const Sidebar: React.FC = () => {
   const path = usePathname();
   return (
     <aside className="hidden md:block md:w-64 bg-white border-r h-screen p-4">
-      <div className="text-2xl font-bold text-primary mb-6">FinWise</div>
+      <div className="text-2xl font-bold text-primary mb-6">SpendSense</div>
       <nav className="space-y-2">
         {nav.map((n) => {
           const active = path === n.href;
