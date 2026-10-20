@@ -12,6 +12,7 @@ import {
 } from "../types";
 import { demoData } from "../lib/demoData";
 import { loadState, saveState } from "../lib/storage";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthProvider";
 
 type FinanceContextValue = {
@@ -91,59 +92,119 @@ export const useFinance = () => {
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user: authUser, loading: authLoading } = useAuth();
   const [state, setState] = useState<FinanceState>(() => createEmptyState(null));
-  const [loaded, setLoaded] = useState(false);
+  // Only save after the currently signed-in user's data has finished loading.
+  // This prevents one account's previous state from being written to another account.
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
 
+    let cancelled = false;
+
     if (!authUser) {
       setState(createEmptyState(null));
-      setLoaded(true);
-      return;
+      setLoadedUserId(null);
+      return () => {
+        cancelled = true;
+      };
     }
 
-    setLoaded(false);
+    // Block the save effect until this user's database/local backup data has loaded.
+    setLoadedUserId(null);
 
-    try {
-      const stored = loadState(authUser.id);
-      const base = createEmptyState(authUser);
+    const loadUserState = async () => {
+      let stored: Partial<FinanceState> | null = null;
 
-      if (stored && typeof stored === "object") {
-        const merged = { ...base, ...stored } as FinanceState;
-        setState({
-          ...merged,
-          user: {
-            ...createEmptyUser(authUser),
-            ...(merged.user ?? {}),
-            id: authUser.id,
-            email: authUser.email,
-            name: merged.user?.name || authUser.name,
-          },
-          incomes: Array.isArray(merged.incomes) ? merged.incomes : [],
-          expenses: Array.isArray(merged.expenses) ? merged.expenses : [],
-          goals: Array.isArray(merged.goals) ? merged.goals : [],
-          vaults: Array.isArray(merged.vaults) ? merged.vaults : [],
-          budgets: Array.isArray(merged.budgets) ? merged.budgets : [],
-        });
-      } else {
-        setState(base);
+      try {
+        const { data, error } = await supabase
+          .from("user_finance_data")
+          .select("data")
+          .eq("user_id", authUser.id)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        const remoteData: unknown = data?.data;
+        if (
+          typeof remoteData === "object" &&
+          remoteData !== null &&
+          !Array.isArray(remoteData)
+        ) {
+          stored = remoteData as Partial<FinanceState>;
+        } else {
+          // One-time migration path: if no database row exists yet, use this
+          // account's existing browser-stored data (if present) as the seed.
+          stored = loadState(authUser.id);
+        }
+      } catch (error) {
+        // Keep the app usable from the local backup if the table is not set up
+        // yet or the network is unavailable. The save effect also keeps a local
+        // backup and reports any Supabase write error in the browser console.
+        console.error("Could not load SpendSense data from Supabase:", error);
+        stored = loadState(authUser.id);
       }
-    } catch (error) {
-      console.error("Could not load FinWise data:", error);
-      setState(createEmptyState(authUser));
-    } finally {
-      setLoaded(true);
-    }
-  }, [authUser?.id, authLoading]);
+
+      if (cancelled) return;
+
+      const base = createEmptyState(authUser);
+      const merged = { ...base, ...(stored ?? {}) } as FinanceState;
+
+      setState({
+        ...merged,
+        user: {
+          ...createEmptyUser(authUser),
+          ...(merged.user ?? {}),
+          id: authUser.id,
+          email: authUser.email,
+          name: merged.user?.name || authUser.name,
+        },
+        incomes: Array.isArray(merged.incomes) ? merged.incomes : [],
+        expenses: Array.isArray(merged.expenses) ? merged.expenses : [],
+        goals: Array.isArray(merged.goals) ? merged.goals : [],
+        vaults: Array.isArray(merged.vaults) ? merged.vaults : [],
+        budgets: Array.isArray(merged.budgets) ? merged.budgets : [],
+      });
+      setLoadedUserId(authUser.id);
+    };
+
+    void loadUserState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser?.id, authUser?.email, authUser?.name, authLoading]);
 
   useEffect(() => {
-    if (!loaded || !authUser) return;
-    try {
-      saveState(authUser.id, state);
-    } catch (error) {
-      console.error("Could not save FinWise data:", error);
-    }
-  }, [state, loaded, authUser]);
+    if (authLoading || !authUser || loadedUserId !== authUser.id) return;
+
+    // Copy the state and debounce writes so multiple quick UI updates do not
+    // immediately trigger a request for every intermediate state.
+    const snapshot = cloneState(state);
+    const timeout = window.setTimeout(async () => {
+      // Keep a browser-local backup, including for offline/error recovery.
+      saveState(authUser.id, snapshot);
+
+      try {
+        const { error } = await supabase.from("user_finance_data").upsert(
+          {
+            user_id: authUser.id,
+            data: snapshot,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        );
+
+        if (error) throw error;
+      } catch (error) {
+        console.error(
+          "Could not save SpendSense data to Supabase. A local backup was kept:",
+          error
+        );
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [state, loadedUserId, authUser?.id, authLoading]);
 
   const setUser = (user: Partial<User>) => {
     setState((current) => ({

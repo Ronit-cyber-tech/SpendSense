@@ -1,7 +1,7 @@
 import { FinanceState } from "../types";
 
-const LEGACY_KEY = "finwise_state_v1";
-const keyForUser = (userId: string) => `finwise_state_v1_${userId}`;
+const LEGACY_KEY = "spendsense_state_v1";
+const keyForUser = (userId: string) => `spendsense_state_v1_${userId}`;
 
 export const saveState = (userId: string, state: FinanceState): boolean => {
   try {
@@ -9,7 +9,7 @@ export const saveState = (userId: string, state: FinanceState): boolean => {
     window.localStorage.setItem(keyForUser(userId), JSON.stringify(state));
     return true;
   } catch (error) {
-    console.warn("Failed to save FinWise data:", error);
+    console.warn("Failed to save SpendSense data:", error);
     return false;
   }
 };
@@ -39,7 +39,7 @@ export const loadState = (userId: string): FinanceState | null => {
 
     return parsed as FinanceState;
   } catch (error) {
-    console.warn("Failed to load FinWise data:", error);
+    console.warn("Failed to load SpendSense data:", error);
     return null;
   }
 };
@@ -50,7 +50,7 @@ export const removeSavedState = (userId: string): boolean => {
     window.localStorage.removeItem(keyForUser(userId));
     return true;
   } catch (error) {
-    console.warn("Failed to remove saved FinWise data:", error);
+    console.warn("Failed to remove saved SpendSense data:", error);
     return false;
   }
 };

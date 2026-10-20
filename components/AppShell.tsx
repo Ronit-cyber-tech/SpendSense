@@ -25,7 +25,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [loading, user, isPublic, router]);
 
   if (loading) {
-    return <div className="min-h-screen grid place-items-center">Loading FinWise...</div>;
+    return <div className="min-h-screen grid place-items-center">Loading SpendSense...</div>;
   }
 
   if (isPublic) {

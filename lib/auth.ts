@@ -1,3 +1,6 @@
+import type { User } from "@supabase/supabase-js";
+import { supabase } from "./supabase";
+
 export type AuthUser = {
   id: string;
   name: string;
@@ -5,89 +8,67 @@ export type AuthUser = {
   createdAt: string;
 };
 
-type StoredAccount = AuthUser & {
-  passwordHash: string;
+export type SignupResult = {
+  user: AuthUser;
+  needsEmailConfirmation: boolean;
 };
 
-const ACCOUNTS_KEY = "finwise_accounts_v1";
-const SESSION_KEY = "finwise_session_v1";
+export const toAuthUser = (user: User): AuthUser => {
+  const metadataName = user.user_metadata?.name;
 
-const readAccounts = (): StoredAccount[] => {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const raw = window.localStorage.getItem(ACCOUNTS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const writeAccounts = (accounts: StoredAccount[]) => {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-};
-
-const hashPassword = async (password: string) => {
-  const data = new TextEncoder().encode(password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-};
-
-export const getCurrentAuthUser = (): AuthUser | null => {
-  if (typeof window === "undefined") return null;
-
-  const userId = window.localStorage.getItem(SESSION_KEY);
-  if (!userId) return null;
-
-  const account = readAccounts().find((item) => item.id === userId);
-  if (!account) return null;
-
-  const { passwordHash: _passwordHash, ...user } = account;
-  return user;
+  return {
+    id: user.id,
+    name:
+      typeof metadataName === "string" && metadataName.trim()
+        ? metadataName.trim()
+        : user.email?.split("@")[0] ?? "User",
+    email: user.email ?? "",
+    createdAt: user.created_at || new Date().toISOString(),
+  };
 };
 
 export const createAccount = async (
   name: string,
   email: string,
   password: string
-): Promise<AuthUser> => {
+): Promise<SignupResult> => {
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
 
-  if (!cleanName) throw new Error("Please enter your name.");
+  if (!cleanName) {
+    throw new Error("Please enter your name.");
+  }
+
   if (!cleanEmail || !cleanEmail.includes("@")) {
     throw new Error("Please enter a valid email address.");
   }
+
   if (password.length < 6) {
     throw new Error("Password must be at least 6 characters.");
   }
 
-  const accounts = readAccounts();
-  if (accounts.some((item) => item.email === cleanEmail)) {
-    throw new Error("An account with this email already exists.");
+  const { data, error } = await supabase.auth.signUp({
+    email: cleanEmail,
+    password,
+    options: {
+      data: {
+        name: cleanName,
+      },
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message);
   }
 
-  const account: StoredAccount = {
-    id:
-      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : `user-${Date.now()}`,
-    name: cleanName,
-    email: cleanEmail,
-    passwordHash: await hashPassword(password),
-    createdAt: new Date().toISOString(),
+  if (!data.user) {
+    throw new Error("Could not create the account. Please try again.");
+  }
+
+  return {
+    user: toAuthUser(data.user),
+    needsEmailConfirmation: !data.session,
   };
-
-  writeAccounts([account, ...accounts]);
-  window.localStorage.setItem(SESSION_KEY, account.id);
-
-  const { passwordHash: _passwordHash, ...user } = account;
-  return user;
 };
 
 export const signIn = async (
@@ -95,21 +76,43 @@ export const signIn = async (
   password: string
 ): Promise<AuthUser> => {
   const cleanEmail = email.trim().toLowerCase();
-  const account = readAccounts().find((item) => item.email === cleanEmail);
 
-  if (!account) throw new Error("No account found with this email.");
-
-  const passwordHash = await hashPassword(password);
-  if (passwordHash !== account.passwordHash) {
-    throw new Error("Incorrect password.");
+  if (!cleanEmail || !password) {
+    throw new Error("Please enter your email and password.");
   }
 
-  window.localStorage.setItem(SESSION_KEY, account.id);
-  const { passwordHash: _passwordHash, ...user } = account;
-  return user;
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: cleanEmail,
+    password,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data.user) {
+    throw new Error("Could not log in. Please try again.");
+  }
+
+  return toAuthUser(data.user);
 };
 
-export const signOut = () => {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(SESSION_KEY);
+export const signOut = async (): Promise<void> => {
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+};
+
+export const getCurrentAuthUser = async (): Promise<AuthUser | null> => {
+  const { data, error } = await supabase.auth.getSession();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data.session?.user
+    ? toAuthUser(data.session.user)
+    : null;
 };

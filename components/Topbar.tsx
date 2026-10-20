@@ -10,7 +10,7 @@ export const Topbar: React.FC<{ title?: string }> = ({ title }) => {
   return (
     <header className="bg-white border-b px-4 py-3 flex items-center justify-between">
       <div className="flex items-center gap-4">
-        <div className="md:hidden text-xl font-bold text-primary">FinWise</div>
+        <div className="md:hidden text-xl font-bold text-primary">SpendSense</div>
         <h1 className="text-lg font-semibold">{title ?? "Dashboard"}</h1>
       </div>
 

@@ -14,7 +14,7 @@ export default function ProfilePage() {
   const u = state.user;
 
   const handleLogout = () => {
-    if (!confirm("Do you want to log out of FinWise?")) return;
+    if (!confirm("Do you want to log out of SpendSense?")) return;
     logout();
     router.push("/login");
   };
@@ -30,7 +30,7 @@ export default function ProfilePage() {
     return (
       <div className="max-w-xl">
         <h2 className="text-xl font-semibold mb-3">Profile</h2>
-        <Card title="You are not logged in" subtitle="Log in or create a new FinWise account">
+        <Card title="You are not logged in" subtitle="Log in or create a new SpendSense account">
           <div className="flex gap-2 mt-2">
             <Link href="/login" className="bg-primary text-white px-4 py-2 rounded text-sm">
               Log in
@@ -48,7 +48,7 @@ export default function ProfilePage() {
     <div className="max-w-xl">
       <h2 className="text-xl font-semibold mb-3">Profile</h2>
 
-      <Card title={u?.name || user.name} subtitle={u?.role || "FinWise user"}>
+      <Card title={u?.name || user.name} subtitle={u?.role || "SpendSense user"}>
         <div className="divide-y">
           {row("Email", user.email)}
           {row("Age range", u?.ageRange || "Not set")}

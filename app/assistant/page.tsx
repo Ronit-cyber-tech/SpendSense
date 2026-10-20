@@ -16,7 +16,7 @@ export default function AssistantPage() {
     {
       role: "assistant",
       content:
-        "Hi! I’m your FinWise assistant. Ask me about your spending, income, budget, savings, SIPs, emergency funds, financial planning, or general personal finance.",
+        "Hi! I’m your Spendsense assistant. Ask me about your spending, income, budget, savings, SIPs, emergency funds, financial planning, or general personal finance.",
     },
   ]);
 
@@ -173,7 +173,7 @@ export default function AssistantPage() {
     if (
       q.includes("budget")
     ) {
-      return "A good budget starts with income, fixed expenses, variable expenses and a savings target. Set category limits in FinWise, then compare your actual spending with those limits.";
+      return "A good budget starts with income, fixed expenses, variable expenses and a savings target. Set category limits in Spendsense, then compare your actual spending with those limits.";
     }
 
     if (
@@ -217,7 +217,7 @@ export default function AssistantPage() {
       const amount = Number(numberMatch[0]);
 
       if (availableBalance >= amount) {
-        return `Based only on the data currently recorded in FinWise, you have ₹${availableBalance.toLocaleString(
+        return `Based only on the data currently recorded in Spendsense, you have ₹${availableBalance.toLocaleString(
           "en-IN"
         )} available, which is enough to cover ₹${amount.toLocaleString(
           "en-IN"
@@ -236,7 +236,7 @@ export default function AssistantPage() {
       q.includes("hi") ||
       q.includes("hey")
     ) {
-      return "Hi! Ask me anything about budgeting, savings, spending, income, investments, SIPs, emergency funds, or your FinWise records.";
+      return "Hi! Ask me anything about budgeting, savings, spending, income, investments, SIPs, emergency funds, or your Spendsense records.";
     }
 
     return `I can help with most personal-finance questions, but this version does not yet use a live AI model.

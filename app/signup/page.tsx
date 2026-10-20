@@ -13,11 +13,13 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
+    setMessage("");
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
@@ -26,8 +28,16 @@ export default function SignupPage() {
 
     setSubmitting(true);
     try {
-      await signup(name, email, password);
-      router.push("/onboarding");
+      const result = await signup(name, email, password);
+
+if (result.needsEmailConfirmation) {
+  setMessage(
+    "Account created. Check your email for a confirmation link, then log in."
+  );
+  return;
+}
+
+router.push("/onboarding");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create account.");
     } finally {
@@ -37,11 +47,16 @@ export default function SignupPage() {
 
   return (
     <div className="max-w-md mx-auto mt-12 bg-white rounded-xl shadow-sm border p-6">
-      <h1 className="text-2xl font-bold text-primary">FinWise</h1>
+      <h1 className="text-2xl font-bold text-primary">SpendSense</h1>
       <h2 className="text-xl font-semibold mt-4">Create account</h2>
       <p className="text-sm text-gray-500 mt-1">Create your account, then complete your finance profile.</p>
 
       {error && <div className="mt-4 rounded bg-red-50 text-red-700 px-3 py-2 text-sm">{error}</div>}
+      {message && (
+  <div className="mt-4 rounded bg-green-50 text-green-700 px-3 py-2 text-sm">
+    {message}
+  </div>
+)}
 
       <form onSubmit={submit} className="space-y-4 mt-5">
         <div>

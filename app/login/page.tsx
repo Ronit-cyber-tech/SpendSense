@@ -30,9 +30,9 @@ export default function LoginPage() {
 
   return (
     <div className="max-w-md mx-auto mt-16 bg-white rounded-xl shadow-sm border p-6">
-      <h1 className="text-2xl font-bold text-primary">FinWise</h1>
+      <h1 className="text-2xl font-bold text-primary">SpendSense</h1>
       <h2 className="text-xl font-semibold mt-4">Log in</h2>
-      <p className="text-sm text-gray-500 mt-1">Use your FinWise account to continue.</p>
+      <p className="text-sm text-gray-500 mt-1">Use your Spendsense account to continue.</p>
 
       {error && <div className="mt-4 rounded bg-red-50 text-red-700 px-3 py-2 text-sm">{error}</div>}
 
@@ -71,7 +71,7 @@ export default function LoginPage() {
       </form>
 
       <p className="text-sm text-gray-600 mt-4 text-center">
-        New to FinWise?{" "}
+        New to SpendSense?{" "}
         <Link href="/signup" className="text-primary font-medium">Create an account</Link>
       </p>
     </div>

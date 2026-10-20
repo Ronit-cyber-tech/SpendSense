@@ -15,23 +15,23 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const savedTheme =
-      (localStorage.getItem("finwise_theme") as Theme) ||
+      (localStorage.getItem("spendsense_theme") as Theme) ||
       "light";
 
     const savedSounds =
-      localStorage.getItem("finwise_sounds") !== "false";
+      localStorage.getItem("spendsense_sounds") !== "false";
 
     const savedAnimations =
-      localStorage.getItem("finwise_animations") !== "false";
+      localStorage.getItem("spendsense_animations") !== "false";
 
     const savedLargeText =
-      localStorage.getItem("finwise_large_text") === "true";
+      localStorage.getItem("spendsense_large_text") === "true";
 
     const savedHighContrast =
-      localStorage.getItem("finwise_high_contrast") === "true";
+      localStorage.getItem("spendsense_high_contrast") === "true";
 
     const savedCompact =
-      localStorage.getItem("finwise_compact") === "true";
+      localStorage.getItem("spendsense_compact") === "true";
 
     setTheme(savedTheme);
     setSounds(savedSounds);
@@ -86,7 +86,7 @@ export default function SettingsPage() {
     setTheme(value);
 
     localStorage.setItem(
-      "finwise_theme",
+      "spendsense_theme",
       value
     );
 
@@ -99,7 +99,7 @@ export default function SettingsPage() {
     setSounds(next);
 
     localStorage.setItem(
-      "finwise_sounds",
+      "spendsense_sounds",
       String(next)
     );
   };
@@ -110,7 +110,7 @@ export default function SettingsPage() {
     setAnimations(next);
 
     localStorage.setItem(
-      "finwise_animations",
+      "spendsense_animations",
       String(next)
     );
 
@@ -123,7 +123,7 @@ export default function SettingsPage() {
     setLargeText(next);
 
     localStorage.setItem(
-      "finwise_large_text",
+      "spendsense_large_text",
       String(next)
     );
 
@@ -136,7 +136,7 @@ export default function SettingsPage() {
     setHighContrast(next);
 
     localStorage.setItem(
-      "finwise_high_contrast",
+      "spendsense_high_contrast",
       String(next)
     );
 
@@ -149,7 +149,7 @@ export default function SettingsPage() {
     setCompactMode(next);
 
     localStorage.setItem(
-      "finwise_compact",
+      "spendsense_compact",
       String(next)
     );
 
@@ -164,7 +164,7 @@ export default function SettingsPage() {
         </h2>
 
         <p className="text-sm text-gray-500 mt-1">
-          Customize how FinWise looks and behaves.
+          Customize how SpendSense looks and behaves.
         </p>
       </div>
 
@@ -259,7 +259,7 @@ export default function SettingsPage() {
         <Card title="Privacy & Data">
           <div className="space-y-3 text-sm text-gray-600">
             <div>
-              Your current FinWise version stores account and
+              Your current SpendSense version stores account and
               financial information locally in this browser.
             </div>
 

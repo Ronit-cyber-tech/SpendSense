@@ -147,7 +147,7 @@ button:disabled {
 
 /* Cards */
 
-.finwise-card {
+.spendsense-card {
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 16px;
@@ -207,12 +207,12 @@ tr:hover td {
     font-size: 23px;
   }
 
-  .finwise-card {
+  .spendsense-card {
     padding: 16px;
   }
 }
 /* =========================================
-   FINWISE SETTINGS
+   SpendSense SETTINGS
    ========================================= */
 
 /* Dark mode */
@@ -259,7 +259,7 @@ html.dark textarea {
   border-color: #475569;
 }
 
-html.dark .finwise-card {
+html.dark .spendsense-card {
   background: #1e293b;
   border-color: #334155;
   color: #e5e7eb;
@@ -321,7 +321,7 @@ html.reduce-animation *::after {
 
 /* Compact mode */
 
-html.compact-mode .finwise-card {
+html.compact-mode .spendsense-card {
   padding: 12px;
 }
 

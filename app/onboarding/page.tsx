@@ -34,7 +34,7 @@
 
 //   return (
 //     <div className="max-w-2xl">
-//       <h2 className="text-xl font-semibold mb-3">Welcome to FinWise — quick setup</h2>
+//       <h2 className="text-xl font-semibold mb-3">Welcome to Spendsense — quick setup</h2>
 //       <form onSubmit={onSubmit} className="space-y-3 bg-white p-4 rounded shadow-sm">
 //         <div>
 //           <label className="text-sm">Name</label>
@@ -196,7 +196,7 @@ export default function Onboarding() {
 
   return (
     <div className="max-w-2xl">
-      <h2 className="text-xl font-semibold mb-1">Welcome to FinWise</h2>
+      <h2 className="text-xl font-semibold mb-1">Welcome to SpendSense</h2>
       <p className="text-sm text-gray-500 mb-3">Tell us a little about yourself. You can change this any time.</p>
 
       {saved && (
