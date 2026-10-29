@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   FinanceState,
   Income,
@@ -17,6 +17,8 @@ import { useAuth } from "./AuthProvider";
 
 type FinanceContextValue = {
   state: FinanceState;
+  persistenceStatus: "idle" | "loading" | "saving" | "saved" | "save-failed" | "load-failed";
+  retryPersistence: () => void;
   setUser: (u: Partial<User>) => void;
   addIncome: (i: Omit<Income, "id">) => void;
   addExpense: (e: Omit<Expense, "id">) => void;
@@ -92,9 +94,29 @@ export const useFinance = () => {
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user: authUser, loading: authLoading } = useAuth();
   const [state, setState] = useState<FinanceState>(() => createEmptyState(null));
-  // Only save after the currently signed-in user's data has finished loading.
-  // This prevents one account's previous state from being written to another account.
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
+  const [persistenceStatus, setPersistenceStatus] = useState<FinanceContextValue["persistenceStatus"]>("loading");
+  const [loadRetryCount, setLoadRetryCount] = useState(0);
+  const [saveRetryCount, setSaveRetryCount] = useState(0);
+  const identityGenerationRef = useRef({ userId: null as string | null, generation: 0 });
+  const latestIdentityRef = useRef({ userId: null as string | null, loadedUserId: null as string | null, generation: 0 });
+  const stateOwnerRef = useRef<string | null>(null);
+  const saveVersionRef = useRef(0);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const lastPersistedRef = useRef<{ userId: string; serialized: string } | null>(null);
+  const currentUserId = authUser?.id ?? null;
+
+  if (identityGenerationRef.current.userId !== currentUserId) {
+    identityGenerationRef.current = {
+      userId: currentUserId,
+      generation: identityGenerationRef.current.generation + 1,
+    };
+  }
+  latestIdentityRef.current = {
+    userId: currentUserId,
+    loadedUserId,
+    generation: identityGenerationRef.current.generation,
+  };
 
   useEffect(() => {
     if (authLoading) return;
@@ -104,16 +126,25 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!authUser) {
       setState(createEmptyState(null));
       setLoadedUserId(null);
+      stateOwnerRef.current = null;
+      lastPersistedRef.current = null;
+      setPersistenceStatus("idle");
       return () => {
         cancelled = true;
       };
     }
 
-    // Block the save effect until this user's database/local backup data has loaded.
     setLoadedUserId(null);
+    if (stateOwnerRef.current !== authUser.id) {
+      setState(createEmptyState(authUser));
+      stateOwnerRef.current = authUser.id;
+    }
+    setPersistenceStatus("loading");
 
     const loadUserState = async () => {
       let stored: Partial<FinanceState> | null = null;
+      let hasRemoteRow = false;
+      let remoteSerialized: string | null = null;
 
       try {
         const { data, error } = await supabase
@@ -124,32 +155,33 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         if (error) throw error;
 
-        const remoteData: unknown = data?.data;
-        if (
-          typeof remoteData === "object" &&
-          remoteData !== null &&
-          !Array.isArray(remoteData)
-        ) {
-          stored = remoteData as Partial<FinanceState>;
-        } else {
-          // One-time migration path: if no database row exists yet, use this
-          // account's existing browser-stored data (if present) as the seed.
+        if (data === null) {
+          // Local data is a migration seed only after a successful no-row read.
           stored = loadState(authUser.id);
+        } else {
+          const remoteData: unknown = data.data;
+          if (
+            typeof remoteData !== "object" ||
+            remoteData === null ||
+            Array.isArray(remoteData)
+          ) {
+            throw new Error("SpendSense cloud data is not a valid object.");
+          }
+          hasRemoteRow = true;
+          stored = remoteData as Partial<FinanceState>;
+          remoteSerialized = JSON.stringify(remoteData);
         }
       } catch (error) {
-        // Keep the app usable from the local backup if the table is not set up
-        // yet or the network is unavailable. The save effect also keeps a local
-        // backup and reports any Supabase write error in the browser console.
         console.error("Could not load SpendSense data from Supabase:", error);
-        stored = loadState(authUser.id);
+        if (!cancelled) setPersistenceStatus("load-failed");
+        return;
       }
 
       if (cancelled) return;
 
       const base = createEmptyState(authUser);
       const merged = { ...base, ...(stored ?? {}) } as FinanceState;
-
-      setState({
+      const nextState: FinanceState = {
         ...merged,
         user: {
           ...createEmptyUser(authUser),
@@ -163,8 +195,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         goals: Array.isArray(merged.goals) ? merged.goals : [],
         vaults: Array.isArray(merged.vaults) ? merged.vaults : [],
         budgets: Array.isArray(merged.budgets) ? merged.budgets : [],
-      });
+      };
+      setState(nextState);
+      stateOwnerRef.current = authUser.id;
+      lastPersistedRef.current = hasRemoteRow
+        ? { userId: authUser.id, serialized: remoteSerialized as string }
+        : null;
       setLoadedUserId(authUser.id);
+      setPersistenceStatus(hasRemoteRow ? "saved" : "saving");
     };
 
     void loadUserState();
@@ -172,39 +210,72 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => {
       cancelled = true;
     };
-  }, [authUser?.id, authUser?.email, authUser?.name, authLoading]);
+  }, [authUser?.id, authUser?.email, authUser?.name, authLoading, loadRetryCount]);
 
   useEffect(() => {
     if (authLoading || !authUser || loadedUserId !== authUser.id) return;
 
-    // Copy the state and debounce writes so multiple quick UI updates do not
-    // immediately trigger a request for every intermediate state.
     const snapshot = cloneState(state);
+    const serialized = JSON.stringify(snapshot);
+    if (
+      lastPersistedRef.current?.userId === authUser.id &&
+      lastPersistedRef.current.serialized === serialized
+    ) {
+      setPersistenceStatus("saved");
+      return;
+    }
+
+    const generation = latestIdentityRef.current.generation;
+    const saveVersion = ++saveVersionRef.current;
+    const isCurrentSave = () =>
+      latestIdentityRef.current.userId === authUser.id &&
+      latestIdentityRef.current.loadedUserId === authUser.id &&
+      latestIdentityRef.current.generation === generation &&
+      saveVersionRef.current === saveVersion;
+
+    setPersistenceStatus("saving");
     const timeout = window.setTimeout(async () => {
-      // Keep a browser-local backup, including for offline/error recovery.
-      saveState(authUser.id, snapshot);
+      const save = async () => {
+        if (!isCurrentSave()) return;
 
-      try {
-        const { error } = await supabase.from("user_finance_data").upsert(
-          {
-            user_id: authUser.id,
-            data: snapshot,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" }
-        );
+        saveState(authUser.id, snapshot);
+        try {
+          const { error } = await supabase.from("user_finance_data").upsert(
+            {
+              user_id: authUser.id,
+              data: snapshot,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id" }
+          );
 
-        if (error) throw error;
-      } catch (error) {
-        console.error(
-          "Could not save SpendSense data to Supabase. A local backup was kept:",
-          error
-        );
-      }
+          if (error) throw error;
+          if (isCurrentSave()) {
+            lastPersistedRef.current = { userId: authUser.id, serialized };
+            setPersistenceStatus("saved");
+          }
+        } catch (error) {
+          console.error(
+            "Could not save SpendSense data to Supabase. A local backup was kept:",
+            error
+          );
+          if (isCurrentSave()) setPersistenceStatus("save-failed");
+        }
+      };
+
+      saveQueueRef.current = saveQueueRef.current.then(save, save);
     }, 350);
 
     return () => window.clearTimeout(timeout);
-  }, [state, loadedUserId, authUser?.id, authLoading]);
+  }, [state, loadedUserId, authUser?.id, authLoading, saveRetryCount]);
+
+  const retryPersistence = () => {
+    if (persistenceStatus === "load-failed") {
+      setLoadRetryCount((count) => count + 1);
+    } else if (persistenceStatus === "save-failed") {
+      setSaveRetryCount((count) => count + 1);
+    }
+  };
 
   const setUser = (user: Partial<User>) => {
     setState((current) => ({
@@ -434,6 +505,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     <FinanceContext.Provider
       value={{
         state,
+        persistenceStatus,
+        retryPersistence,
         setUser,
         addIncome,
         addExpense,
